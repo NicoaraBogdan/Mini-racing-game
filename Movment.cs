@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class Movment : MonoBehaviour
@@ -14,21 +15,27 @@ public class Movment : MonoBehaviour
         turn_speed,
         gravity_multiplayer;
 
-    private NNet network;
+    public NNet network;
 
-    private float s1, s2, s3, speed_net, turn_net;
+    private float s1, s2, s3, s4, s5, speed_net, turn_net;
+
+    public float
+        time_start,
+        time;
 
     // Start is called before the first frame update
     void Awake()
     {
-        network = GetComponent<NNet>();
+        
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
-        (s1, s2, s3) = GetComponent<Sensor>().GetSensorData();
-        (speed_net, turn_net) = network.RunNetwork(s1, s2, s3);
+        (s1, s2, s3, s4, s5) = GetComponent<Sensor>().GetSensorData();
+
+        if (network.weights.Count > 0)
+            (speed_net, turn_net) = network.RunNetwork(s1, s2, s3, s4, s5);
 
         Drive(speed_net);
         Turn(turn_net);
@@ -38,6 +45,54 @@ public class Movment : MonoBehaviour
     public void ResetWithNetwork(NNet network)
     {
         this.network = network;
+        time_start = Time.time;
+    }
+
+    private void Save(float time, NNet indv)
+    {
+        List<string> indv_to_save = new List<string>();
+        string aux;
+
+        indv_to_save.Add("Time: " + time);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+
+        indv_to_save.Add("Weights: ");
+        for (int x = 0; x < indv.weights.Count; x++)
+        {
+            aux = "";
+            for (int i = 0; i < indv.weights[x].RowCount; i++)
+            {
+                for (int j = 0; j < indv.weights[x].ColumnCount; j++)
+                {
+                    aux += indv.weights[x][i, j];
+                    aux += " ";
+                }
+                aux += "\n";
+            }
+            indv_to_save.Add(aux);
+            indv_to_save.Add("");
+        }
+
+        aux = "";
+        indv_to_save.Add("Biases: ");
+        for (int i = 0; i < indv.biases.Count; i++)
+        {
+            aux += indv.biases[i];
+            aux += " ";
+        }
+        indv_to_save.Add(aux);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+        string path = @"E:\Unity\Projects\MiniRace\Assets\Scripts\Data\debug.txt";
+
+        using (StreamWriter sw = File.AppendText(path))
+        {
+            foreach (var line in indv_to_save)
+                sw.WriteLine(line);
+        }
     }
 
     private void Drive()

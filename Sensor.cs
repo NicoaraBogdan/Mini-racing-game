@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
     
 public class Sensor : MonoBehaviour
@@ -31,15 +32,19 @@ public class Sensor : MonoBehaviour
         sensor_data1,
         sensor_data2,
         sensor_data3,
-        no_checkpoints = 0,
+        sensor_data4,
+        sensor_data5,
         fitness = 0,
         sensor_fit = 0;
+
+    private int no_checkpoints;
 
     // Start is called before the first frame update
     void Awake()
     {
         start_rot = transform.eulerAngles;
         start_pos = transform.position;
+        last_pos = transform.position;
         fitness = 0;
     }
 
@@ -76,6 +81,13 @@ public class Sensor : MonoBehaviour
             no_checkpoints++;
             other.gameObject.SetActive(false);
         }
+
+        if (other.CompareTag("Finish"))
+        {
+            Save(Time.time - GetComponent<Movment>().time_start);
+            //Death();
+            Debug.Log("Winner");
+        }
     }
 
     public void Reset()
@@ -87,6 +99,7 @@ public class Sensor : MonoBehaviour
         fitness = 0f;
         sensor_fit = 0f;
         no_checkpoints = 0;
+        checkpoint_check = 0;
         time_check = 0;
         ResetCheckpoints();
 
@@ -107,9 +120,9 @@ public class Sensor : MonoBehaviour
     private void Death()
     {
         if (no_checkpoints == 0)
-            FindObjectOfType<PopulationManager>().Death(0);
+            FindObjectOfType<PopulationManager>().Death(0, no_checkpoints);
         else
-            FindObjectOfType<PopulationManager>().Death(fitness);
+            FindObjectOfType<PopulationManager>().Death(fitness, no_checkpoints);
 
             Reset();
     }
@@ -119,45 +132,16 @@ public class Sensor : MonoBehaviour
         distance_traveled += Vector3.Distance(transform.position, last_pos);
 
         avg_speed = distance_traveled / time_passed;
-        sensor_fit += (sensor_data1 + sensor_data2 + sensor_data3) * sensor_multiplier / 3; 
+        sensor_fit += (sensor_data1 + sensor_data2 + sensor_data3 + sensor_data4 + sensor_data5) * sensor_multiplier / 5;
 
-        fitness = /*(avg_speed * speed_multiplier) */
-                //+ distance_traveled * distance_multiplier
-                + sensor_fit
-                + (no_checkpoints * checkpoint_multiplier);
-
-        //Debug.Log("speed" + (avg_speed * speed_multiplier).ToString());
-        //Debug.Log("sensor" + (((sensor_data1 + 1.2f - Mathf.Abs(sensor_data2 + sensor_data3)) / 2) * sensor_multiplier).ToString());
-        //Debug.Log("checkpoint" + (no_checkpoints * checkpoint_multiplier).ToString());
-        //Debug.Log(fitness);
-        //Debug.Break();
-
-        //if (time_passed > 10 && fitness < 40)
-        //{
-        //    Death();
-        //}
-        //else if (fitness > 50 && no_checkpoints < 1)
-        //{
-        //    Death();
-        //}
-
-        if (fitness >= 1000)
-        {
-            //Saves network to a JSON
-            Debug.Log("WINER!!!");
-            Death();
-        }
-
+        fitness = (avg_speed * speed_multiplier)
+                + distance_traveled * distance_multiplier
+                + sensor_fit;
     }
 
     private void CheckIfStoped()
     {
-        if(fitness - fitness_gained_10sec < 10f)
-        {
-            Death();
-        }
-
-        if(checkpoint_check - no_checkpoints < 1)
+        if(no_checkpoints - checkpoint_check < 1)
         {
             Death();
         }
@@ -170,37 +154,105 @@ public class Sensor : MonoBehaviour
     private void InputSensor()
     {
         Vector3 ray_dir1 = transform.forward;
-        Vector3 ray_dir2 = transform.forward + transform.right;
-        Vector3 ray_dir3 = transform.forward - transform.right;
+        Vector3 ray_dir2 = Quaternion.AngleAxis(15f, Vector3.up) * transform.forward;
+        Vector3 ray_dir3 = transform.forward + transform.right;
+        Vector3 ray_dir4 = Quaternion.AngleAxis(-15f, Vector3.up) * transform.forward;
+        Vector3 ray_dir5 = transform.forward - transform.right;
 
         Ray r = new Ray(transform.position, ray_dir1);
         RaycastHit hit;
 
-        if(Physics.Raycast(r, out hit, 1000f, track))
+        if(Physics.Raycast(r, out hit, 50f, track))
         {
-            sensor_data1 = hit.distance / 50;
+            sensor_data1 = hit.distance / 100;
             Debug.DrawLine(r.origin, hit.point, Color.red);
         }
+        else { sensor_data1 = 1f; }
 
         r.direction = ray_dir2;
 
-        if (Physics.Raycast(r, out hit, 1000f, track))
+        if (Physics.Raycast(r, out hit, 50f, track))
         {
-            sensor_data2 = hit.distance / 50;
+            sensor_data2 = hit.distance / 100;
             Debug.DrawLine(r.origin, hit.point, Color.red);
         }
 
         r.direction = ray_dir3;
 
-        if (Physics.Raycast(r, out hit, 1000f, track))
+        if (Physics.Raycast(r, out hit, 50f, track))
         {
-            sensor_data3 = hit.distance / 50;
+            sensor_data3 = hit.distance / 100;
+            Debug.DrawLine(r.origin, hit.point, Color.red);
+        }
+
+        r.direction = ray_dir4;
+
+        if (Physics.Raycast(r, out hit, 50f, track))
+        {
+            sensor_data4 = hit.distance / 100;
+            Debug.DrawLine(r.origin, hit.point, Color.red);
+        }
+
+        r.direction = ray_dir5;
+
+        if (Physics.Raycast(r, out hit, 50f, track))
+        {
+            sensor_data5 = hit.distance / 100;
             Debug.DrawLine(r.origin, hit.point, Color.red);
         }
     }
 
-    public (float, float, float) GetSensorData()
+    public (float, float, float, float, float) GetSensorData()
     {
-        return (sensor_data1, sensor_data2, sensor_data3);
+        return (sensor_data1, sensor_data2, sensor_data3, sensor_data4, sensor_data5);
+    }
+
+    private void Save(float time)
+    {
+        Debug.Log("saving");
+        List<string> indv_to_save = new List<string>();
+        string aux;
+        NNet indv = GetComponent<Movment>().network;
+
+        indv_to_save.Add("Generation: " + FindObjectOfType<PopulationManager>().current_generation);
+        indv_to_save.Add("Time: " + time);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+        
+        indv_to_save.Add("Weights: ");
+        for(int x = 0; x < indv.weights.Count; x++)
+        {
+            aux = "";
+            for (int i = 0; i < indv.weights[x].RowCount; i++)
+            {
+                for (int j = 0; j < indv.weights[x].ColumnCount; j++)
+                {
+                    aux += indv.weights[x][i, j];
+                    aux += " ";
+                }
+                aux += "\n";
+            }
+            indv_to_save.Add(aux);
+            indv_to_save.Add("");
+        }
+
+        aux = "";
+        indv_to_save.Add("Biases: ");
+        for (int i = 0; i< indv.biases.Count; i++)
+        {
+            aux += indv.biases[i];
+            aux += " ";
+        }
+        indv_to_save.Add(aux);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+        string path = @"E:\Unity\Projects\MiniRace\Assets\Scripts\Data\saves.txt";
+        
+        using (StreamWriter sw = File.AppendText(path)) {
+            foreach (var line in indv_to_save)
+                sw.WriteLine(line);
+        }
     }
 }

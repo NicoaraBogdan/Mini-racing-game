@@ -5,9 +5,11 @@ using System;
 using MathNet.Numerics.LinearAlgebra;
 
 using Random = UnityEngine.Random;
-public class NNet: MonoBehaviour
+using System.IO;
+
+public class NNet
 {
-    public Matrix<float> inputLayer = Matrix<float>.Build.Dense(1, 3);
+    public Matrix<float> inputLayer = Matrix<float>.Build.Dense(1, 5);
 
     public Matrix<float> outputLayer = Matrix<float>.Build.Dense(1, 2);
 
@@ -35,7 +37,7 @@ public class NNet: MonoBehaviour
 
             if (i == 0)
             {
-                temp = Matrix<float>.Build.Dense(3, neuronsCount);
+                temp = Matrix<float>.Build.Dense(5, neuronsCount);
                 weights.Add(temp);
             }
             else
@@ -111,11 +113,13 @@ public class NNet: MonoBehaviour
         }
     }
 
-    public (float, float) RunNetwork(float a, float b, float c)
+    public (float, float) RunNetwork(float a, float b, float c, float d, float e)
     {
         inputLayer[0, 0] = a;
         inputLayer[0, 1] = b;
         inputLayer[0, 2] = c;
+        inputLayer[0, 3] = d;
+        inputLayer[0, 4] = e;
         inputLayer = inputLayer.PointwiseTanh();
 
         hiddenLayers[0] = (inputLayer * weights[0] + biases[0]).PointwiseTanh();
@@ -129,8 +133,55 @@ public class NNet: MonoBehaviour
                        + biases[biases.Count - 1]).PointwiseTanh();
 
 
+        return (Sigmoid(outputLayer[0, 0]), outputLayer[0, 1]);
+    }
 
-        return (Sigmoid(outputLayer[0, 0]), (outputLayer[0, 1]));
+    private void Save(NNet indv, float time = 0f)
+    {
+        Debug.Log("saving");
+        List<string> indv_to_save = new List<string>();
+        string aux;
+
+        indv_to_save.Add("Time: " + time);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+
+        indv_to_save.Add("Weights: ");
+        for (int x = 0; x < indv.weights.Count; x++)
+        {
+            aux = "";
+            for (int i = 0; i < indv.weights[x].RowCount; i++)
+            {
+                for (int j = 0; j < indv.weights[x].ColumnCount; j++)
+                {
+                    aux += indv.weights[x][i, j];
+                    aux += " ";
+                }
+                aux += "\n";
+            }
+            indv_to_save.Add(aux);
+            indv_to_save.Add("");
+        }
+
+        aux = "";
+        indv_to_save.Add("Biases: ");
+        for (int i = 0; i < indv.biases.Count; i++)
+        {
+            aux += indv.biases[i];
+            aux += " ";
+        }
+        indv_to_save.Add(aux);
+        indv_to_save.Add("");
+        indv_to_save.Add("");
+
+        string path = @"E:\Unity\Projects\MiniRace\Assets\Scripts\Data\debug.txt";
+
+        using (StreamWriter sw = File.AppendText(path))
+        {
+            foreach (var line in indv_to_save)
+                sw.WriteLine(line);
+        }
     }
 
     float Sigmoid(float value)
